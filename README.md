@@ -1,7 +1,7 @@
 # DecisionPlanning
 The repository implements some decision-making and planning methods.
 
-If you find this work useful or interesting, please kindly give us a star ⭐, thanks!😀
+If you find this work useful or interesting, please kindly give me a star ⭐, thanks!😀
 
 
 
