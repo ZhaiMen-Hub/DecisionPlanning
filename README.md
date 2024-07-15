@@ -1,5 +1,5 @@
 # DecisionPlanning
-The repository implements some decision-making and planning methods.
+The repository implements some decision-making and contingency planning methods.
 
 If you find this work useful or interesting, please kindly give me a star ⭐, thanks!😀
 
