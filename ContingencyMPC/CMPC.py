@@ -7,20 +7,24 @@ from matplotlib.patches import Rectangle
 
 current_file_path = os.path.dirname(os.path.abspath(__file__))
 
-# Define the horizon
-N = 9
-N_obs = 10  # N for obstacle 
-N_c = 4     # N for contingency (pop or not pop)
-
 # Parameters
 
+# CMPC - obstacle pops out
 obs_pop = True
 Pc = 0.25        # Cost weight for contingency control
+
+# # CMPC - obstacle does not pop out
 # obs_pop = False
 # Pc = 1e-2       # for unique minimum solution
+
 # # RMPC
 # obs_pop = False
 # Pc = 1.0 - 1e-2      
+
+# Define the horizon
+N = 9
+N_obs = 10  # N for obstacle 
+N_c = 4     # N for contingency (pops out)
 
 Pn = 1 - Pc     # Cost weight for normal control
 y_obs_max = 1.0     # Obstacle position maximum
