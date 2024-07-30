@@ -12,12 +12,18 @@ current_file_path = os.path.dirname(os.path.abspath(__file__))
 # CMPC - obstacle pops out
 obs_pop = True
 Pc = 0.25        # Cost weight for contingency control
+# Pc = 0.9
 
 # # CMPC - obstacle does not pop out
 # obs_pop = False
-# Pc = 1e-2       # for unique minimum solution
+# # Pc = 1e-2       # for unique minimum solution
+# Pc = 0.1
 
-# # RMPC
+# # RMPC - obstacle pops out
+# obs_pop = True
+# Pc = 1.0 - 1e-2   
+
+# # RMPC - obstacle does not pop out
 # obs_pop = False
 # Pc = 1.0 - 1e-2      
 
@@ -192,7 +198,8 @@ def update(frame):
     # ax[0].axhspan(-1, 1, xmin=0.8, xmax=1.0, color='red', alpha=0.5, label='Actual Obstacle')
 
     # Plot contingency 
-    ax[0].axvline(x=4, color='r', linestyle='--', label='Contingency')
+    if obs_pop and frame >= N_c:
+        ax[0].axvline(x=4, color='r', linestyle='--', label='Contingency')
 
     # Add labels
     # ax[0].set_xlabel('x')
@@ -211,7 +218,8 @@ def update(frame):
     ax[1].step(x_hist[frame][:-1], uc_hist[frame], 'r^', where='post', label='uc')
 
     # Plot contingency 
-    ax[1].axvline(x=4, color='r', linestyle='--', label='Contingency')
+    if obs_pop and frame >= N_c:
+        ax[1].axvline(x=4, color='r', linestyle='--', label='Contingency')
 
     # Plot history
     ax[1].plot(xR[:frame+1], uR[:frame+1], 'm--', label='uR')
@@ -231,6 +239,6 @@ def update(frame):
     plt.savefig(f'{current_file_path}/log/frame_{frame}.jpg')
 
 ani = FuncAnimation(fig, update, frames=range(N), repeat=False)
-plt.show()
 ani.save(f'{current_file_path}/log/mpc_animation.gif', writer='pillow')
 ani.save(f'{current_file_path}/log/mpc_animation.mp4', writer='ffmpeg')
+# plt.show()
