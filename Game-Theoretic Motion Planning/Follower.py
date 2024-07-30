@@ -22,7 +22,9 @@ xLref = np.array([0.0, 10.0, 0.0, 5.0, 0.0, 0.0])
 dist = 20    # collision ditance
 KF = 0.01
 KL = 1 - KF
+Kinfluence = 0
 addCollisionCons = True
+vxRef = 10
 
 # 创建优化变量
 XF = ca.MX.sym('XF', 6, N+1)
@@ -77,6 +79,7 @@ UL = ca.MX.sym('UL', nu, N)
 
 JF = 0
 JL = 0
+Jinfluence = 0
 consF = []
 consL = []
 collisionConsF = []
@@ -92,6 +95,7 @@ for k in range(N):
     xLrefCa = ca.MX(xLref)
     JF += ca.mtimes([(XF[:, k+1] - xFrefCa).T, Q, (XF[:, k+1] - xFrefCa)]) + ca.mtimes([UF[:, k].T, R, UF[:, k]])
     JL += ca.mtimes([(XL[:, k+1] - xLrefCa).T, Q, (XL[:, k+1] - xLrefCa)]) + ca.mtimes([UL[:, k].T, R, UL[:, k]])
+    Jinfluence += (XF[1, k+1] - vxRef) ** 2
     # constrain
     xF_next = dynamics(XF[:, k], UF[:, k])
     xL_next = dynamics(XL[:, k], UL[:, k])
@@ -109,8 +113,7 @@ equCon = ca.vertcat(equConF, equConL)
 
 # construct the optimization problem
 x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1))
-nlp = {'x': x, 'f': KF * JF + KL * JL, 'g': ca.vertcat(equCon, inequConsF)}
-# nlp = {'x': ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1)), 'f': JF, 'g': equConF}
+nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequConsF)}
 
 # 设置求解器
 # opts = {'ipopt': {'print_level': 0}}

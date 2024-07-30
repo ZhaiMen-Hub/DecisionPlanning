@@ -22,7 +22,9 @@ xLref = np.array([0.0, 10.0, 0.0, 5.0, 0.0, 0.0])
 dist = 20    # collision ditance
 KF = 0.01
 KL = 1 - KF
+Kinfluence = 0
 addCollisionCons = True
+vxRef = 10
 
 # 创建优化变量
 XF = ca.MX.sym('XF', 6, N+1)
@@ -74,9 +76,12 @@ XF = ca.MX.sym('XF', nx, N+1)
 UF = ca.MX.sym('UF', nu, N)
 XL = ca.MX.sym('XL', nx, N+1)
 UL = ca.MX.sym('UL', nu, N)
+lenX = nx * (N+1)
+lenU = nu * N
 
 JF = 0
 JL = 0
+Jinfluence = 0
 consF = []
 consL = []
 collisionConsF = []
@@ -92,6 +97,7 @@ for k in range(N):
     xLrefCa = ca.MX(xLref)
     JF += ca.mtimes([(XF[:, k+1] - xFrefCa).T, Q, (XF[:, k+1] - xFrefCa)]) + ca.mtimes([UF[:, k].T, R, UF[:, k]])
     JL += ca.mtimes([(XL[:, k+1] - xLrefCa).T, Q, (XL[:, k+1] - xLrefCa)]) + ca.mtimes([UL[:, k].T, R, UL[:, k]])
+    Jinfluence += (XF[1, k+1] - vxRef) ** 2
     # constrain
     xF_next = dynamics(XF[:, k], UF[:, k])
     xL_next = dynamics(XL[:, k], UL[:, k])
@@ -105,12 +111,23 @@ for k in range(N):
 equConF = ca.vertcat(*consF)
 equConL = ca.vertcat(*consL)
 inequConsF = ca.vertcat(*collisionConsF)
-equCon = ca.vertcat(equConF, equConL)
+
+# define Lagrangian multipliers
+lambda_ = ca.MX.sym('lambda', equConF.size1())
+mu = ca.MX.sym('nu', inequConsF.size1())
+
+# Lagrangian
+Lagrangian = JF + ca.mtimes([lambda_.T, equConF]) + ca.mtimes([mu.T, inequConsF])
+
+# KKT condition (equality)
+grad_L_x = ca.gradient(Lagrangian, ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1)))
+complementary_slackness = ca.diag(mu) @ inequConsF
+equCon = ca.vertcat(equConF, equConL, grad_L_x, complementary_slackness)
 
 # construct the optimization problem
-x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1))
-nlp = {'x': x, 'f': KF * JF + KL * JL, 'g': ca.vertcat(equCon, inequConsF)}
-# nlp = {'x': ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1)), 'f': JF, 'g': equConF}
+x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1), lambda_, mu)
+lbx = ca.vertcat((2 * (lenU + lenX) + lambda_.size1()) * [-ca.inf] + mu.size1() * [0])
+nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequConsF)}
 
 # 设置求解器
 # opts = {'ipopt': {'print_level': 0}}
@@ -124,13 +141,11 @@ solver = ca.nlpsol('solver', 'ipopt', nlp)
 # init_guess = np.concatenate((x0_var, u0_var), axis=0)
 # sol = solver(x0=init_guess, lbx=-np.inf, ubx=np.inf, lbg=0, ubg=0)
 # without initial guess
-sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequConsF.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1()+inequConsF.size1()) * [0]))
+sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequConsF.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1()+inequConsF.size1()) * [0]), lbx = lbx)
 # sol = solver(lbg = 0, ubg = 0)
 
 # 提取解
 sol_x = sol['x'].full().flatten()
-lenX = nx * (N+1)
-lenU = nu * N
 XF_sol = sol_x[:lenX].reshape(N+1, nx).T
 UF_sol = sol_x[lenX:lenX+lenU].reshape(N, nu).T
 XL_sol = sol_x[lenX+lenU:2*lenX+lenU].reshape(N+1, nx).T
