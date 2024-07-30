@@ -1,49 +1,63 @@
 import casadi as ca
 import numpy as np
+import os
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+current_file_path = os.path.dirname(os.path.abspath(__file__))
 
 # 参数设置
-# N = 10
-N = 3
+T = 10
+tau = 0.5
+N = int(T/tau)
+# tau = 1
+# N = 5
 Q = np.diag([0.0, 1.0, 2.0, 1.0, 2.0, 4.0])
 R = np.diag([4.0, 4.0])
-xref = np.array([0.0, 15.0, 0.0, 5.0, 0.0, 0.0])
-x0 = np.array([2.0, 15.0, 0.0, 5.0, 0.0, 0.0])
-tau = 1.0  # 时间步长，确保是浮点数
+xF0 = np.array([2.0, 15.0, 0.0, 5.0, 0.0, 0.0])
+xFref = np.array([0.0, 15.0, 0.0, 5.0, 0.0, 0.0])
+# xL0 = np.array([12.0, 10.0, 0.0, 3.0, 0.0, 0.0])
+xL0 = np.array([32.0, 10.0, 0.0, 3.0, 0.0, 0.0])
+xLref = np.array([0.0, 10.0, 0.0, 5.0, 0.0, 0.0])
+dist = 2    # collision ditance
+KF = 0.01
+KL = 1 - KF
 
 # 创建优化变量
-X = ca.MX.sym('X', 6, N+1)
-U = ca.MX.sym('U', 2, N)
-
-# # 状态转移矩阵
-# A_np = np.array([[1.0, tau, 0.5*tau**2, 0.0, 0.0, 0.0],
-#                  [0.0, 1.0, tau, 0.0, 0.0, 0.0],
-#                  [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-#                  [0.0, 0.0, 0.0, 1.0, tau, 0.5*tau**2],
-#                  [0.0, 0.0, 0.0, 0.0, 1.0, tau],
-#                  [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
-
-# B_np = np.array([[1/6*tau**3, 0.0],
-#                  [0.5*tau**2, 0.0],
-#                  [tau, 0.0],
-#                  [0.0, 1/6*tau**3],
-#                  [0.0, 0.5*tau**2],
-#                  [0.0, tau]])
+XF = ca.MX.sym('XF', 6, N+1)
+UF = ca.MX.sym('UF', 2, N)
+XL = ca.MX.sym('XL', 6, N+1)
+UL = ca.MX.sym('UL', 2, N)
 
 # 状态转移矩阵
-A_np = np.array([[1.0, tau, 0, 0.0, 0.0, 0.0],
+A_np = np.array([[1.0, tau, 0.5*tau**2, 0.0, 0.0, 0.0],
                  [0.0, 1.0, tau, 0.0, 0.0, 0.0],
                  [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                 [0.0, 0.0, 0.0, 1.0, tau, 0],
+                 [0.0, 0.0, 0.0, 1.0, tau, 0.5*tau**2],
                  [0.0, 0.0, 0.0, 0.0, 1.0, tau],
                  [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
 
-B_np = np.array([[0, 0.0],
-                 [0, 0.0],
+B_np = np.array([[1/6*tau**3, 0.0],
+                 [0.5*tau**2, 0.0],
                  [tau, 0.0],
-                 [0.0, 0],
-                 [0.0, 0],
+                 [0.0, 1/6*tau**3],
+                 [0.0, 0.5*tau**2],
                  [0.0, tau]])
+
+# # 状态转移矩阵
+# A_np = np.array([[1.0, tau, 0.0, 0.0, 0.0, 0.0],
+#                  [0.0, 1.0, tau, 0.0, 0.0, 0.0],
+#                  [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+#                  [0.0, 0.0, 0.0, 1.0, tau, 0.0],
+#                  [0.0, 0.0, 0.0, 0.0, 1.0, tau],
+#                  [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
+
+# B_np = np.array([[0.0, 0.0],
+#                  [0.0, 0.0],
+#                  [tau, 0.0],
+#                  [0.0, 0.0],
+#                  [0.0, 0.0],
+#                  [0.0, tau]])
 
 A = ca.MX(A_np)
 B = ca.MX(B_np)
@@ -55,29 +69,46 @@ def dynamics(x, u):
 # 定义优化问题
 nx = 6  # 状态维度
 nu = 2  # 输入维度
-X_var = ca.MX.sym('X_var', nx, N+1)
-U_var = ca.MX.sym('U_var', nu, N)
+XF = ca.MX.sym('XF', nx, N+1)
+UF = ca.MX.sym('UF', nu, N)
+XL = ca.MX.sym('XL', nx, N+1)
+UL = ca.MX.sym('UL', nu, N)
 
-cost = 0
-constraints = []
+JF = 0
+JL = 0
+consF = []
+consL = []
 
 # 初始状态
-constraints.append(X_var[:, 0] - x0)
+consF.append(XF[:, 0] - xF0)
+consL.append(XL[:, 0] - xL0)
 
 # 轨迹规划的目标
 for k in range(N):
-    x_ref = ca.MX(xref)
-    cost += ca.mtimes([(X_var[:, k] - x_ref).T, Q, (X_var[:, k] - x_ref)]) + ca.mtimes([U_var[:, k].T, R, U_var[:, k]])
-    x_next = dynamics(X_var[:, k], U_var[:, k])
-    constraints.append(X_var[:, k+1] - x_next)
+    # cost
+    xFrefCa = ca.MX(xFref)
+    xLrefCa = ca.MX(xLref)
+    JF += ca.mtimes([(XF[:, k+1] - xFrefCa).T, Q, (XF[:, k+1] - xFrefCa)]) + ca.mtimes([UF[:, k].T, R, UF[:, k]])
+    JL += ca.mtimes([(XL[:, k+1] - xLrefCa).T, Q, (XL[:, k+1] - xLrefCa)]) + ca.mtimes([UL[:, k].T, R, UL[:, k]])
+    # constrain
+    xF_next = dynamics(XF[:, k], UF[:, k])
+    xL_next = dynamics(XL[:, k], UL[:, k])
+    consF.append(XF[:, k+1] - xF_next)
+    consL.append(XL[:, k+1] - xL_next)
 
+equConF = ca.vertcat(*consF)
+equConL = ca.vertcat(*consL)
+equCon = ca.vertcat(equConF, equConL)
 
 # construct the optimization problem
-nlp = {'x': ca.vertcat(ca.reshape(X_var, -1, 1), ca.reshape(U_var, -1, 1)), 'f': cost, 'g': ca.vertcat(*constraints)}
+x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1))
+nlp = {'x': x, 'f': KF * JF + KL * JL, 'g': equCon}
+# nlp = {'x': ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1)), 'f': JF, 'g': equConF}
 
 # 设置求解器
-opts = {'ipopt': {'print_level': 0}}
-solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
+# opts = {'ipopt': {'print_level': 0}}
+# solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
+solver = ca.nlpsol('solver', 'ipopt', nlp)
 
 # 求解优化问题
 # sol = opti.solve()
@@ -86,16 +117,23 @@ solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
 # init_guess = np.concatenate((x0_var, u0_var), axis=0)
 # sol = solver(x0=init_guess, lbx=-np.inf, ubx=np.inf, lbg=0, ubg=0)
 # without initial guess
-sol = solver(lbg=ca.DM(np.zeros((nx * (N+1), 1))), ubg=ca.DM(np.zeros((nx * (N+1), 1))))
+sol = solver(lbg=ca.DM(np.zeros((equCon.size1(), 1))), ubg=ca.DM(np.zeros((equCon.size1(), 1))))
+# sol = solver(lbg = 0, ubg = 0)
 
 # 提取解
 sol_x = sol['x'].full().flatten()
-X_sol = sol_x[:nx * (N+1)].reshape(N+1, nx).T
-U_sol = sol_x[nx * (N+1):].reshape(N, nu).T
-# print('X_sol')
-# print(X_sol)
-# print('U_sol')
-# print(U_sol)
+lenX = nx * (N+1)
+lenU = nu * N
+XF_sol = sol_x[:lenX].reshape(N+1, nx).T
+UF_sol = sol_x[lenX:lenX+lenU].reshape(N, nu).T
+XL_sol = sol_x[lenX+lenU:2*lenX+lenU].reshape(N+1, nx).T
+UL_sol = sol_x[2*lenX+lenU:2*lenX+2*lenU].reshape(N, nu).T
+
+np.set_printoptions(precision=2)
+# print('XF_sol')
+# print(XF_sol)
+# print('UF_sol')
+# print(UF_sol)
 
 # 可视化结果
 time = np.arange(N+1)
@@ -103,8 +141,8 @@ plt.figure(figsize=(14, 8))
 
 # px 轨迹
 plt.subplot(4, 2, 1)
-plt.plot(time, X_sol[0, :], 'r-', label='px')
-plt.plot(time, xref[0]*np.ones(N+1), 'b--', label='xref px')
+plt.plot(time, XF_sol[0, :], 'r-', label='px')
+plt.plot(time, xFref[0]*np.ones(N+1), 'b--', label='xref px')
 plt.title('Position in x')
 plt.xlabel('Time step')
 plt.ylabel('Position')
@@ -112,52 +150,52 @@ plt.legend()
 
 # py 轨迹
 plt.subplot(4, 2, 2)
-plt.plot(time, X_sol[3, :], 'r-', label='py')
-plt.plot(time, xref[3]*np.ones(N+1), 'b--', label='xref py')
+plt.plot(time, XF_sol[3, :], 'r-', label='py')
+plt.plot(time, xFref[3]*np.ones(N+1), 'b--', label='xref py')
 plt.title('Position in y')
 plt.xlabel('Time step')
 plt.ylabel('Position')
 plt.legend()
 
-# vx 轨迹
-plt.subplot(4, 2, 3)
-plt.plot(time, X_sol[1, :], 'r-', label='vx')
-plt.legend()
+# # vx 轨迹
+# plt.subplot(4, 2, 3)
+# plt.plot(time, X_sol[1, :], 'r-', label='vx')
+# plt.legend()
 
-# vy 轨迹
-plt.subplot(4, 2, 4)
-plt.plot(time, X_sol[4, :], 'r-', label='vy')
-plt.legend()
+# # vy 轨迹
+# plt.subplot(4, 2, 4)
+# plt.plot(time, X_sol[4, :], 'r-', label='vy')
+# plt.legend()
 
-# ax 轨迹
-plt.subplot(4, 2, 5)
-plt.plot(time, X_sol[2, :], 'r-', label='ax')
-plt.legend()
+# # ax 轨迹
+# plt.subplot(4, 2, 5)
+# plt.plot(time, X_sol[2, :], 'r-', label='ax')
+# plt.legend()
 
-# ay 轨迹
-plt.subplot(4, 2, 6)
-plt.plot(time, X_sol[5, :], 'r-', label='ay')
-plt.legend()
+# # ay 轨迹
+# plt.subplot(4, 2, 6)
+# plt.plot(time, X_sol[5, :], 'r-', label='ay')
+# plt.legend()
 
-# jx 轨迹
-plt.subplot(4, 2, 7)
-plt.plot(time[:-1], U_sol[0, :], 'g-', label='jx')
-plt.title('Jerk in x')
-plt.xlabel('Time step')
-plt.ylabel('Jerk')
-plt.legend()
+# # jx 轨迹
+# plt.subplot(4, 2, 7)
+# plt.plot(time[:-1], U_sol[0, :], 'g-', label='jx')
+# plt.title('Jerk in x')
+# plt.xlabel('Time step')
+# plt.ylabel('Jerk')
+# plt.legend()
 
-# jy 轨迹
-plt.subplot(4, 2, 8)
-plt.plot(time[:-1], U_sol[1, :], 'g-', label='jy')
-plt.title('Jerk in y')
-plt.xlabel('Time step')
-plt.ylabel('Jerk')
-plt.legend()
+# # jy 轨迹
+# plt.subplot(4, 2, 8)
+# plt.plot(time[:-1], U_sol[1, :], 'g-', label='jy')
+# plt.title('Jerk in y')
+# plt.xlabel('Time step')
+# plt.ylabel('Jerk')
+# plt.legend()
 
 # y-x 轨迹
 plt.figure(figsize=(7, 5))
-plt.plot(X_sol[0, :], X_sol[3, :], 'r-', label='Trajectory')
+plt.plot(XF_sol[0, :], XF_sol[3, :], 'r-', label='Trajectory')
 plt.title('Trajectory (y vs. x)')
 plt.xlabel('px')
 plt.ylabel('py')
@@ -165,4 +203,65 @@ plt.legend()
 plt.grid(True)
 
 plt.tight_layout()
-plt.show()
+# plt.show()
+
+# Create the animation
+fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+
+def update(frame):
+
+    # clear plotting of last timestep
+    ax[0].clear()
+    ax[1].clear()
+    
+    # plot traj
+    ax[0].plot(XF_sol[0, : frame+1], XF_sol[3, : frame+1], 'ro-', label='Traj_F')
+    ax[0].plot(XL_sol[0, : frame+1], XL_sol[3, : frame+1], 'bo-', label='Traj_L')
+
+    # # Plot planning states
+    # ax[0].plot(x_hist[frame], yn_hist[frame], 'bo', label='yn')
+    # ax[0].plot(x_hist[frame], yc_hist[frame], 'r^', label='yc')
+
+    # # Plot history
+    # ax[0].plot(xR[:frame+1], yR[:frame+1], 'm--', label='yR')
+
+    # plot collision distance
+    # # Plot contingency 
+    # ax[0].axvline(x=4, color='r', linestyle='--', label='Contingency')
+
+    # Add labels
+    ax[0].set_xlabel('x')
+    ax[0].set_ylabel('y')
+    # ax[0].legend()
+    # ax[0].set_title('State Evolution')
+    ax[0].set_title(f't = {frame * tau}')
+    
+    # Set limit
+    ax[0].set_xlim(0, 160)
+    ax[0].set_ylim(0, 10)
+    ax[0].grid(True)
+
+    # Plot 
+    time = np.arange(0, frame * tau + tau, tau)
+    ax[1].plot(time, XF_sol[1, : frame+1], 'ro-', label='vxF')
+    ax[1].plot(time, XL_sol[1, : frame+1], 'bo-', label='vxL')
+    
+    # # Add labels
+    # ax[1].set_xlabel('x')
+    # ax[1].set_ylabel('u')
+    # # ax[1].legend()
+    # # ax[1].set_title('Control Inputs')
+
+    # # Set limit
+    ax[1].set_xlim(0, T+2*tau)
+    # ax[1].set_ylim(-0.2, 0.2)
+    # ax[1].grid(True)
+
+    # save fig
+    plt.savefig(f'{current_file_path}/log/Hybrid_{frame}.jpg')
+
+ani = FuncAnimation(fig, update, frames=range(N+1), repeat=False)
+ani.save(f'{current_file_path}/log/Hybrid_animation.gif', writer='pillow')
+ani.save(f'{current_file_path}/log/Hybrid_animation.mp4', writer='ffmpeg')
+
+# plt.show()
