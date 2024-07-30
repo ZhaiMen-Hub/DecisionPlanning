@@ -19,7 +19,8 @@ xFref = np.array([0.0, 15.0, 0.0, 5.0, 0.0, 0.0])
 # xL0 = np.array([12.0, 10.0, 0.0, 3.0, 0.0, 0.0])
 xL0 = np.array([32.0, 10.0, 0.0, 3.0, 0.0, 0.0])
 xLref = np.array([0.0, 10.0, 0.0, 5.0, 0.0, 0.0])
-dist = 20    # collision ditance
+distF = 10    # collision ditance
+distL = 15
 KF = 0.01
 KL = 1 - KF
 Kinfluence = 0
@@ -83,6 +84,7 @@ Jinfluence = 0
 consF = []
 consL = []
 collisionConsF = []
+collisionConsL = []
 
 # 初始状态
 consF.append(XF[:, 0] - xF0)
@@ -103,17 +105,20 @@ for k in range(N):
     consL.append(XL[:, k+1] - xL_next)
     # collision
     if addCollisionCons:
-        # px_L - px_F > dist  => dist + px_F - px_L < 0
-        collisionConsF.append(dist + XF[0, k+1] - XL[0, k+1])
+        # px_L - px_F > distF  => distF + px_F - px_L < 0
+        collisionConsF.append(distF + XF[0, k+1] - XL[0, k+1])
+        collisionConsL.append(distL + XF[0, k+1] - XL[0, k+1])
 
 equConF = ca.vertcat(*consF)
 equConL = ca.vertcat(*consL)
 inequConsF = ca.vertcat(*collisionConsF)
+inequConsL = ca.vertcat(*collisionConsL)
 equCon = ca.vertcat(equConF, equConL)
+inequCon = ca.veccat(inequConsF, inequConsL)
 
 # construct the optimization problem
 x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1))
-nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequConsF)}
+nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequCon)}
 
 # 设置求解器
 # opts = {'ipopt': {'print_level': 0}}
@@ -127,7 +132,7 @@ solver = ca.nlpsol('solver', 'ipopt', nlp)
 # init_guess = np.concatenate((x0_var, u0_var), axis=0)
 # sol = solver(x0=init_guess, lbx=-np.inf, ubx=np.inf, lbg=0, ubg=0)
 # without initial guess
-sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequConsF.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1()+inequConsF.size1()) * [0]))
+sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequCon.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1() + inequCon.size1()) * [0]))
 # sol = solver(lbg = 0, ubg = 0)
 
 # 提取解
@@ -225,12 +230,12 @@ def update(frame):
     ax[1].clear()
     
     # plot traj
-    ax[0].plot(XF_sol[0, : frame+1], XF_sol[3, : frame+1], 'ro-', label='Traj_F')
-    ax[0].plot(XL_sol[0, : frame+1], XL_sol[3, : frame+1], 'bo-', label='Traj_L')
-
+    ax[0].plot(XF_sol[0, : frame+1], XF_sol[3, : frame+1], 'bo-', label='Traj_F')
+    ax[0].plot(XL_sol[0, : frame+1], XL_sol[3, : frame+1], 'ro-', label='Traj_L')
 
     # plot collision distance
-    ax[0].axvline(x = XL_sol[0, frame] - dist, color='r', linestyle='--', label='collision')
+    ax[0].axvline(x = XF_sol[0, frame] + distF, color='b', linestyle='--', label='collisionF')
+    ax[0].axvline(x = XL_sol[0, frame] - distL, color='r', linestyle='--', label='collisionL')
 
     # Add labels
     ax[0].set_xlabel('x')
@@ -246,8 +251,8 @@ def update(frame):
 
     # Plot 
     time = np.arange(0, frame * tau + tau, tau)
-    ax[1].plot(time, XF_sol[1, : frame+1], 'ro-', label='vxF')
-    ax[1].plot(time, XL_sol[1, : frame+1], 'bo-', label='vxL')
+    ax[1].plot(time, XF_sol[1, : frame+1], 'bo-', label='vxF')
+    ax[1].plot(time, XL_sol[1, : frame+1], 'ro-', label='vxL')
     
     # # Add labels
     # ax[1].set_xlabel('x')
