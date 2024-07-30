@@ -19,9 +19,10 @@ xFref = np.array([0.0, 15.0, 0.0, 5.0, 0.0, 0.0])
 # xL0 = np.array([12.0, 10.0, 0.0, 3.0, 0.0, 0.0])
 xL0 = np.array([32.0, 10.0, 0.0, 3.0, 0.0, 0.0])
 xLref = np.array([0.0, 10.0, 0.0, 5.0, 0.0, 0.0])
-dist = 2    # collision ditance
+dist = 20    # collision ditance
 KF = 0.01
 KL = 1 - KF
+addCollisionCons = True
 
 # 创建优化变量
 XF = ca.MX.sym('XF', 6, N+1)
@@ -78,6 +79,7 @@ JF = 0
 JL = 0
 consF = []
 consL = []
+collisionConsF = []
 
 # 初始状态
 consF.append(XF[:, 0] - xF0)
@@ -95,14 +97,19 @@ for k in range(N):
     xL_next = dynamics(XL[:, k], UL[:, k])
     consF.append(XF[:, k+1] - xF_next)
     consL.append(XL[:, k+1] - xL_next)
+    # collision
+    if addCollisionCons:
+        # px_L - px_F > dist  => dist + px_F - px_L < 0
+        collisionConsF.append(dist + XF[0, k+1] - XL[0, k+1])
 
 equConF = ca.vertcat(*consF)
 equConL = ca.vertcat(*consL)
+inequConsF = ca.vertcat(*collisionConsF)
 equCon = ca.vertcat(equConF, equConL)
 
 # construct the optimization problem
 x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1))
-nlp = {'x': x, 'f': KF * JF + KL * JL, 'g': equCon}
+nlp = {'x': x, 'f': KF * JF + KL * JL, 'g': ca.vertcat(equCon, inequConsF)}
 # nlp = {'x': ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1)), 'f': JF, 'g': equConF}
 
 # 设置求解器
@@ -117,7 +124,7 @@ solver = ca.nlpsol('solver', 'ipopt', nlp)
 # init_guess = np.concatenate((x0_var, u0_var), axis=0)
 # sol = solver(x0=init_guess, lbx=-np.inf, ubx=np.inf, lbg=0, ubg=0)
 # without initial guess
-sol = solver(lbg=ca.DM(np.zeros((equCon.size1(), 1))), ubg=ca.DM(np.zeros((equCon.size1(), 1))))
+sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequConsF.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1()+inequConsF.size1()) * [0]))
 # sol = solver(lbg = 0, ubg = 0)
 
 # 提取解
@@ -218,16 +225,9 @@ def update(frame):
     ax[0].plot(XF_sol[0, : frame+1], XF_sol[3, : frame+1], 'ro-', label='Traj_F')
     ax[0].plot(XL_sol[0, : frame+1], XL_sol[3, : frame+1], 'bo-', label='Traj_L')
 
-    # # Plot planning states
-    # ax[0].plot(x_hist[frame], yn_hist[frame], 'bo', label='yn')
-    # ax[0].plot(x_hist[frame], yc_hist[frame], 'r^', label='yc')
-
-    # # Plot history
-    # ax[0].plot(xR[:frame+1], yR[:frame+1], 'm--', label='yR')
 
     # plot collision distance
-    # # Plot contingency 
-    # ax[0].axvline(x=4, color='r', linestyle='--', label='Contingency')
+    ax[0].axvline(x = XL_sol[0, frame] - dist, color='r', linestyle='--', label='collision')
 
     # Add labels
     ax[0].set_xlabel('x')
