@@ -56,4 +56,52 @@ If you find this work useful or interesting, please kindly give me a star ⭐, t
 ### Reference
 
 - Alsterda, John P. and J. Christian Gerdes. “Contingency Model Predictive Control for Linear Time-Varying Systems.” *ArXiv* abs/2102.12045 (2021): n. pag.
+  - [Contingency Model Predictive Control for Linear Time-Varying Systems - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/631676428) 
 - Alsterda, John P., Matthew Brown and J. Christian Gerdes. “Contingency Model Predictive Control for Automated Vehicles.” *2019 American Control Conference (ACC)* (2019): 717-722.
+
+
+
+## Game-Theoretic Motion Planning
+
+### How to run
+
+- Uncomment the corresponding code block of settings in `Game-Theoretic Motion Planning/Game.py` 
+
+  ```python
+  KF = 0.01
+  KL = 1 - KF
+  # distF = 20    # collision ditance (conservative)
+  distF = 10    # collision ditance (agressive)
+  distL = 15
+  Kinfluence = 0
+  
+  # KF = 0.5
+  # KL = 1 - KF
+  # distF = 20    # collision ditance
+  # distL = 20
+  # Kinfluence = 1 # add Jinfluence
+  ```
+
+- Run the script `python3 Game-Theoretic Motion Planning/Game.py`
+
+- The anime and figures are saved in `Game-Theoretic Motion Planning/log/`
+
+
+
+### Results
+
+- Aggressive follower: Leader (automated vehicles) performs an aggressive lane change
+
+<img src="./README.assets/Game_animation.gif" alt="Game_animation" style="zoom:67%;" />
+
+- Conservative follower: Leader accelerates before performing lane change (also the Fig 4. of \[Burger, 2022\])
+
+<img src="./README.assets/Game_animation-1722329898665-2.gif" alt="Game_animation" style="zoom:67%;" />
+
+
+
+### Reference
+
+- Burger, Christoph, Johannes Fischer, Frank Bieder, Ömer Sahin Tas and Christoph Stiller. “Interaction-Aware Game-Theoretic Motion Planning for Automated Vehicles using Bi-level Optimization.” *2022 IEEE 25th International Conference on Intelligent Transportation Systems (ITSC)* (2022): 3978-3985.
+  - [Interaction-Aware Game-Theoretic Motion Planning for Automated Vehicles using Bi-level Optimization - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/636258416) 
+- Burger, Christoph and Martin Lauer. “Cooperative Multiple Vehicle Trajectory Planning using MIQP.” *2018 21st International Conference on Intelligent Transportation Systems (ITSC)* (2018): 602-607.

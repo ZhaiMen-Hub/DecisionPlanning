@@ -24,13 +24,18 @@ vxRef = 10
 KF = 0.01
 KL = 1 - KF
 
-# distF = 10    # collision ditance
-# distL = 15
-# Kinfluence = 0
+KF = 0.01
+KL = 1 - KF
+# distF = 20    # collision ditance (conservative)
+distF = 10    # collision ditance (agressive)
+distL = 15
+Kinfluence = 0
 
-distF = 20    # collision ditance
-distL = 20
-Kinfluence = 1
+# KF = 0.5
+# KL = 1 - KF
+# distF = 20    # collision ditance
+# distL = 20
+# Kinfluence = 1    # enable Jinfluence
 
 # 创建优化变量
 XF = ca.MX.sym('XF', 6, N+1)
