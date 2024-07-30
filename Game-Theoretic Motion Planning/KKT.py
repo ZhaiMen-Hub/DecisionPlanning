@@ -1,3 +1,5 @@
+# this secipt implement a toy example of solving a standard QP with KKT condition
+
 import casadi as ca
 import numpy as np
 import matplotlib.pyplot as plt
@@ -84,9 +86,10 @@ x0 = ca.DM([0.5, 0.5])
 lambda0 = ca.DM([1])
 nu0 = ca.DM([1, 1])
 initial_guess = ca.vertcat(x0, lambda0, nu0)
+lbx = ca.vertcat((x0.size1() + lambda0.size1()) * [-ca.inf], nu0.size1() * [0])
 
 # 求解
-sol = solver(x0=initial_guess, lbg=lb, ubg=0)
+sol = solver(x0=initial_guess, lbg=lb, ubg=0, lbx = lbx)
 
 # 提取结果
 x_opt_kkt = sol['x'][0:2]
