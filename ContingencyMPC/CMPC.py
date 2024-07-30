@@ -231,6 +231,6 @@ def update(frame):
     plt.savefig(f'{current_file_path}/log/frame_{frame}.jpg')
 
 ani = FuncAnimation(fig, update, frames=range(N), repeat=False)
-ani.save(f'{current_file_path}/log/mpc_animation.gif', writer='pillow')
-# ani.save('mpc_animation.mp4', writer='ffmpeg')
 plt.show()
+ani.save(f'{current_file_path}/log/mpc_animation.gif', writer='pillow')
+ani.save(f'{current_file_path}/log/mpc_animation.mp4', writer='ffmpeg')
