@@ -19,13 +19,18 @@ xFref = np.array([0.0, 15.0, 0.0, 5.0, 0.0, 0.0])
 # xL0 = np.array([12.0, 10.0, 0.0, 3.0, 0.0, 0.0])
 xL0 = np.array([32.0, 10.0, 0.0, 3.0, 0.0, 0.0])
 xLref = np.array([0.0, 10.0, 0.0, 5.0, 0.0, 0.0])
-distF = 10    # collision ditance
-distL = 15
-KF = 0.01
-KL = 1 - KF
-Kinfluence = 0
 addCollisionCons = True
 vxRef = 10
+KF = 0.01
+KL = 1 - KF
+
+# distF = 10    # collision ditance
+# distL = 15
+# Kinfluence = 0
+
+distF = 20    # collision ditance
+distL = 20
+Kinfluence = 1
 
 # 创建优化变量
 XF = ca.MX.sym('XF', 6, N+1)
