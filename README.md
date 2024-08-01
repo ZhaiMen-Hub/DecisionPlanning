@@ -103,5 +103,6 @@ If you find this work useful or interesting, please kindly give me a star ⭐, t
 ### Reference
 
 - Burger, Christoph, Johannes Fischer, Frank Bieder, Ömer Sahin Tas and Christoph Stiller. “Interaction-Aware Game-Theoretic Motion Planning for Automated Vehicles using Bi-level Optimization.” *2022 IEEE 25th International Conference on Intelligent Transportation Systems (ITSC)* (2022): 3978-3985.
-  - [Interaction-Aware Game-Theoretic Motion Planning for Automated Vehicles using Bi-level Optimization - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/636258416) 
+  - [Interaction-Aware Game-Theoretic Motion Planning for Automated Vehicles using Bi-level Optimization - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/636258416)
+  - [论文复现 基于博弈论的运动规划 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/711848923)
 - Burger, Christoph and Martin Lauer. “Cooperative Multiple Vehicle Trajectory Planning using MIQP.” *2018 21st International Conference on Intelligent Transportation Systems (ITSC)* (2018): 602-607.
