@@ -10,32 +10,41 @@ current_file_path = os.path.dirname(os.path.abspath(__file__))
 # Parameters
 
 # CMPC - obstacle pops out
+cmpc = True
 obs_pop = True
-Pc = 0.25        # Cost weight for contingency control
-# Pc = 0.9
+# Pc = 0.25        # Cost weight for contingency control
+Pc = 0.7
 
 # # CMPC - obstacle does not pop out
+# cmpc = True
 # obs_pop = False
 # # Pc = 1e-2       # for unique minimum solution
-# Pc = 0.1
+# Pc = 0.3
 
 # # RMPC - obstacle pops out
+# cmpc = False
 # obs_pop = True
 # Pc = 1.0 - 1e-2   
 
 # # RMPC - obstacle does not pop out
+# cmpc = False
 # obs_pop = False
 # Pc = 1.0 - 1e-2      
 
 # Define the horizon
-N = 9
+N = 12
 N_obs = 10  # N for obstacle 
 N_c = 4     # N for contingency (pops out)
+# N_o = N_obs - N_c   # N for observe (pops out)
 
 Pn = 1 - Pc     # Cost weight for normal control
-y_obs_max = 1.0     # Obstacle position maximum
+# y_obs_max = 1.0     # Obstacle position maximum
+y_obs_max = 0.5     # Obstacle position maximum (for N_obs = 10)
 y_obs_0 = -1.0
-obs_speed = 0.25  # Obstacle speed
+# obs_speed = 0.25  # Obstacle speed
+obs_speed = 0.2  # Obstacle speed
+obs_width = 0.4 # Obstacle width
+collision_width = 0.1 # Collision width
 
 # Initial conditions for receding horizional plannnig
 x0 = 0
@@ -82,8 +91,9 @@ def solve_Cmpc(x0, y0n, y0c, t):
     if t <= N_c or not obs_pop:
         y_obs = y_obs_0
     else:        
-        y_obs = obs_speed * (t - N_c) + y_obs_0        
-    y_obs_N = min(y_obs_max, obs_speed * (N_obs - t) + y_obs)
+        y_obs = obs_speed * (t - N_c) + y_obs_0  
+    # y_obs_N = min(y_obs_max, obs_speed * (N_obs - t) + y_obs)
+    y_obs_N = obs_speed * (N_obs - t) + y_obs
         
     for k in range(N+1):
         if k + t >= N_obs:
@@ -100,7 +110,7 @@ def solve_Cmpc(x0, y0n, y0c, t):
             
             else:
                 # only yc see the obstacle
-                g.append(yc[k] - y_obs_N)
+                g.append(yc[k] - y_obs_N - obs_width)
                 lbg.append(0)
                 ubg.append(ca.inf)
                 # g.append(y_obs_N - yc[k])
@@ -142,8 +152,8 @@ yR = []
 un_hist = []
 uc_hist = []
 uR = []
-y_obs_hist = []
-y_obs_N_hist = []
+y_obs_hist = []     # for t
+y_obs_N_hist = []   # for N_obs
 
 # Initial conditions for rolling horizon
 x_curr = x0
@@ -183,7 +193,8 @@ def update(frame):
     ax[1].clear()
     
     # Plot planning states
-    ax[0].plot(x_hist[frame], yn_hist[frame], 'bo', label='yn')
+    if cmpc:
+        ax[0].plot(x_hist[frame], yn_hist[frame], 'bo', label='yn')
     ax[0].plot(x_hist[frame], yc_hist[frame], 'r^', label='yc')
 
     # Plot history
@@ -191,8 +202,8 @@ def update(frame):
 
     # Plot obstacle
     y_min = -1.2
-    rect_y_obs = Rectangle((N_obs, y_min), 1, y_obs_hist[frame] - y_min, linewidth=1, edgecolor='r', facecolor='r', alpha = 1)
-    rect_y_obs_N = Rectangle((N_obs, y_min), 1, y_obs_N_hist[frame] - y_min, linewidth=1, edgecolor='r', facecolor='r', alpha = 0.3)
+    rect_y_obs = Rectangle((N_obs - obs_width / 2, y_min), obs_width, y_obs_hist[frame] - y_min, linewidth=1, edgecolor='r', facecolor='r', alpha = 1)
+    rect_y_obs_N = Rectangle((N_obs - obs_width / 2, y_min), obs_width, y_obs_N_hist[frame] - y_min, linewidth=1, edgecolor='r', facecolor='r', alpha = 0.3)
     ax[0].add_patch(rect_y_obs)
     ax[0].add_patch(rect_y_obs_N)
     # ax[0].axhspan(-1, 1, xmin=0.8, xmax=1.0, color='red', alpha=0.5, label='Actual Obstacle')
@@ -214,7 +225,8 @@ def update(frame):
     ax[0].grid(True)
 
     # Plot control inputs (number of state = number of control + 1)
-    ax[1].step(x_hist[frame][:-1], un_hist[frame], 'bo', where='post', label='un')
+    if cmpc:
+        ax[1].step(x_hist[frame][:-1], un_hist[frame], 'bo', where='post', label='un')
     ax[1].step(x_hist[frame][:-1], uc_hist[frame], 'r^', where='post', label='uc')
 
     # Plot contingency 
