@@ -24,8 +24,6 @@ vxRef = 10
 KF = 0.01
 KL = 1 - KF
 
-KF = 0.01
-KL = 1 - KF
 # distF = 20    # collision ditance (conservative)
 distF = 10    # collision ditance (agressive)
 distL = 15
@@ -36,12 +34,6 @@ Kinfluence = 0
 # distF = 20    # collision ditance
 # distL = 20
 # Kinfluence = 1    # enable Jinfluence
-
-# 创建优化变量
-XF = ca.MX.sym('XF', 6, N+1)
-UF = ca.MX.sym('UF', 2, N)
-XL = ca.MX.sym('XL', 6, N+1)
-UL = ca.MX.sym('UL', 2, N)
 
 # 状态转移矩阵
 A_np = np.array([[1.0, tau, 0.5*tau**2, 0.0, 0.0, 0.0],
@@ -58,21 +50,6 @@ B_np = np.array([[1/6*tau**3, 0.0],
                  [0.0, 0.5*tau**2],
                  [0.0, tau]])
 
-# # 状态转移矩阵
-# A_np = np.array([[1.0, tau, 0.0, 0.0, 0.0, 0.0],
-#                  [0.0, 1.0, tau, 0.0, 0.0, 0.0],
-#                  [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-#                  [0.0, 0.0, 0.0, 1.0, tau, 0.0],
-#                  [0.0, 0.0, 0.0, 0.0, 1.0, tau],
-#                  [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
-
-# B_np = np.array([[0.0, 0.0],
-#                  [0.0, 0.0],
-#                  [tau, 0.0],
-#                  [0.0, 0.0],
-#                  [0.0, 0.0],
-#                  [0.0, tau]])
-
 A = ca.MX(A_np)
 B = ca.MX(B_np)
 
@@ -80,92 +57,105 @@ B = ca.MX(B_np)
 def dynamics(x, u):
     return ca.mtimes(A, x) + ca.mtimes(B, u)
 
-# 定义优化问题
-nx = 6  # 状态维度
-nu = 2  # 输入维度
-XF = ca.MX.sym('XF', nx, N+1)
-UF = ca.MX.sym('UF', nu, N)
-XL = ca.MX.sym('XL', nx, N+1)
-UL = ca.MX.sym('UL', nu, N)
-lenX = nx * (N+1)
-lenU = nu * N
+# Function for Leader Follower Game
+def gameLeaderFollower(xL0, xF0):
 
-JF = 0
-JL = 0
-Jinfluence = 0
-consF = []
-consL = []
-collisionConsF = []
-collisionConsL = []
+    # 创建优化变量
+    XF = ca.MX.sym('XF', 6, N+1)
+    UF = ca.MX.sym('UF', 2, N)
+    XL = ca.MX.sym('XL', 6, N+1)
+    UL = ca.MX.sym('UL', 2, N)
 
-# 初始状态
-consF.append(XF[:, 0] - xF0)
-consL.append(XL[:, 0] - xL0)
+    # 定义优化问题
+    nx = 6  # 状态维度
+    nu = 2  # 输入维度
+    XF = ca.MX.sym('XF', nx, N+1)
+    UF = ca.MX.sym('UF', nu, N)
+    XL = ca.MX.sym('XL', nx, N+1)
+    UL = ca.MX.sym('UL', nu, N)
+    lenX = nx * (N+1)
+    lenU = nu * N
 
-# 轨迹规划的目标
-for k in range(N):
-    # cost
-    xFrefCa = ca.MX(xFref)
-    xLrefCa = ca.MX(xLref)
-    JF += ca.mtimes([(XF[:, k+1] - xFrefCa).T, Q, (XF[:, k+1] - xFrefCa)]) + ca.mtimes([UF[:, k].T, R, UF[:, k]])
-    JL += ca.mtimes([(XL[:, k+1] - xLrefCa).T, Q, (XL[:, k+1] - xLrefCa)]) + ca.mtimes([UL[:, k].T, R, UL[:, k]])
-    Jinfluence += (XF[1, k+1] - vxRef) ** 2
-    # constrain
-    xF_next = dynamics(XF[:, k], UF[:, k])
-    xL_next = dynamics(XL[:, k], UL[:, k])
-    consF.append(XF[:, k+1] - xF_next)
-    consL.append(XL[:, k+1] - xL_next)
-    # collision
-    if addCollisionCons:
-        # px_L - px_F > dist  => dist + px_F - px_L < 0
-        collisionConsF.append(distF + XF[0, k+1] - XL[0, k+1])
-        collisionConsL.append(distL + XF[0, k+1] - XL[0, k+1])
+    JF = 0
+    JL = 0
+    Jinfluence = 0
+    consF = []
+    consL = []
+    collisionConsF = []
+    collisionConsL = []
 
-equConF = ca.vertcat(*consF)
-equConL = ca.vertcat(*consL)
-inequConsF = ca.vertcat(*collisionConsF)
-inequConsL = ca.vertcat(*collisionConsL)
-equCon = ca.vertcat(equConF, equConL)
-inequCon = ca.veccat(inequConsF, inequConsL)
+    # 初始状态
+    consF.append(XF[:, 0] - xF0)
+    consL.append(XL[:, 0] - xL0)
 
-# define Lagrangian multipliers
-lambda_ = ca.MX.sym('lambda', equConF.size1())
-mu = ca.MX.sym('nu', inequConsF.size1())
+    # 轨迹规划的目标
+    for k in range(N):
+        # cost
+        xFrefCa = ca.MX(xFref)
+        xLrefCa = ca.MX(xLref)
+        JF += ca.mtimes([(XF[:, k+1] - xFrefCa).T, Q, (XF[:, k+1] - xFrefCa)]) + ca.mtimes([UF[:, k].T, R, UF[:, k]])
+        JL += ca.mtimes([(XL[:, k+1] - xLrefCa).T, Q, (XL[:, k+1] - xLrefCa)]) + ca.mtimes([UL[:, k].T, R, UL[:, k]])
+        Jinfluence += (XF[1, k+1] - vxRef) ** 2
+        # constrain
+        xF_next = dynamics(XF[:, k], UF[:, k])
+        xL_next = dynamics(XL[:, k], UL[:, k])
+        consF.append(XF[:, k+1] - xF_next)
+        consL.append(XL[:, k+1] - xL_next)
+        # collision
+        if addCollisionCons:
+            # px_L - px_F > dist  => dist + px_F - px_L < 0
+            collisionConsF.append(distF + XF[0, k+1] - XL[0, k+1])
+            collisionConsL.append(distL + XF[0, k+1] - XL[0, k+1])
 
-# Lagrangian
-Lagrangian = JF + ca.mtimes([lambda_.T, equConF]) + ca.mtimes([mu.T, inequConsF])
+    equConF = ca.vertcat(*consF)
+    equConL = ca.vertcat(*consL)
+    inequConsF = ca.vertcat(*collisionConsF)
+    inequConsL = ca.vertcat(*collisionConsL)
+    equCon = ca.vertcat(equConF, equConL)
+    inequCon = ca.veccat(inequConsF, inequConsL)
 
-# KKT condition (equality)
-grad_L_x = ca.gradient(Lagrangian, ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1)))
-complementary_slackness = ca.diag(mu) @ inequConsF
-equCon = ca.vertcat(equConF, equConL, grad_L_x, complementary_slackness)
+    # define Lagrangian multipliers
+    lambda_ = ca.MX.sym('lambda', equConF.size1())
+    mu = ca.MX.sym('nu', inequConsF.size1())
 
-# construct the optimization problem
-x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1), lambda_, mu)
-lbx = ca.vertcat((2 * (lenU + lenX) + lambda_.size1()) * [-ca.inf] + mu.size1() * [0])
-nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequCon)}
+    # Lagrangian
+    Lagrangian = JF + ca.mtimes([lambda_.T, equConF]) + ca.mtimes([mu.T, inequConsF])
 
-# 设置求解器
-# opts = {'ipopt': {'print_level': 0}}
-# solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
-solver = ca.nlpsol('solver', 'ipopt', nlp)
+    # KKT condition (equality)
+    grad_L_x = ca.gradient(Lagrangian, ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1)))
+    complementary_slackness = ca.diag(mu) @ inequConsF
+    equCon = ca.vertcat(equConF, equConL, grad_L_x, complementary_slackness)
 
-# 求解优化问题
-# sol = opti.solve()
-# x0_var = np.concatenate((np.reshape(x0, (-1, 1)), np.zeros((nx * N, 1))), axis=0)
-# u0_var = np.zeros((nu * N, 1))
-# init_guess = np.concatenate((x0_var, u0_var), axis=0)
-# sol = solver(x0=init_guess, lbx=-np.inf, ubx=np.inf, lbg=0, ubg=0)
-# without initial guess
-sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequCon.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1() + inequCon.size1()) * [0]), lbx = lbx)
-# sol = solver(lbg = 0, ubg = 0)
+    # construct the optimization problem
+    x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1), lambda_, mu)
+    lbx = ca.vertcat((2 * (lenU + lenX) + lambda_.size1()) * [-ca.inf] + mu.size1() * [0])
+    nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequCon)}
 
-# 提取解
-sol_x = sol['x'].full().flatten()
-XF_sol = sol_x[:lenX].reshape(N+1, nx).T
-UF_sol = sol_x[lenX:lenX+lenU].reshape(N, nu).T
-XL_sol = sol_x[lenX+lenU:2*lenX+lenU].reshape(N+1, nx).T
-UL_sol = sol_x[2*lenX+lenU:2*lenX+2*lenU].reshape(N, nu).T
+    # 设置求解器
+    # opts = {'ipopt': {'print_level': 0}}
+    # solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
+    solver = ca.nlpsol('solver', 'ipopt', nlp)
+
+    # 求解优化问题
+    # sol = opti.solve()
+    # x0_var = np.concatenate((np.reshape(x0, (-1, 1)), np.zeros((nx * N, 1))), axis=0)
+    # u0_var = np.zeros((nu * N, 1))
+    # init_guess = np.concatenate((x0_var, u0_var), axis=0)
+    # sol = solver(x0=init_guess, lbx=-np.inf, ubx=np.inf, lbg=0, ubg=0)
+    # without initial guess
+    sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequCon.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1() + inequCon.size1()) * [0]), lbx = lbx)
+    # sol = solver(lbg = 0, ubg = 0)
+
+    # 提取解
+    sol_x = sol['x'].full().flatten()
+    XF_sol = sol_x[:lenX].reshape(N+1, nx).T
+    UF_sol = sol_x[lenX:lenX+lenU].reshape(N, nu).T
+    XL_sol = sol_x[lenX+lenU:2*lenX+lenU].reshape(N+1, nx).T
+    UL_sol = sol_x[2*lenX+lenU:2*lenX+2*lenU].reshape(N, nu).T
+
+    return XF_sol, UF_sol, XL_sol, UL_sol
+
+XF_sol, UF_sol, XL_sol, UL_sol = gameLeaderFollower(xL0, xF0)
 
 np.set_printoptions(precision=2)
 # print('XF_sol')
