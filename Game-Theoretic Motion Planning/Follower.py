@@ -24,9 +24,12 @@ vxRef = 10
 
 KF = 0.01
 KL = 1 - KF
+# KF = 0.5
+# KL = 1 - KF
 # distF = 20    # collision ditance (conservative)
 distF = 10    # collision ditance (agressive)
 distL = 15
+Kinfluence = 0
 # Kinfluence = 1    # enable Jinfluence
 
 # KF = 0.5
