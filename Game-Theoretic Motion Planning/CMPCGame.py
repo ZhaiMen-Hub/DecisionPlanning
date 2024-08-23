@@ -23,11 +23,15 @@ addCollisionCons = True
 vxRef = 10
 KF = 0.01
 KL = 1 - KF
-
-# distF = 20    # collision ditance (conservative)
-distF = 10    # collision ditance (agressive)
-distL = 15
 Kinfluence = 0
+
+distL = 15
+# distF = 10
+distF = 20
+distDecelF = 20    # dist for follower to decel
+distAccelF = 10
+probDecel0 = 0.5
+probAccel0 = 1 - probDecel0
 
 # KF = 0.5
 # KL = 1 - KF
@@ -57,28 +61,38 @@ B = ca.MX(B_np)
 def dynamics(x, u):
     return ca.mtimes(A, x) + ca.mtimes(B, u)
 
-# Function for Leader Follower Game
-def gameLeaderFollower(xL0, xF0):
-
-    # 创建优化变量
-    XF = ca.MX.sym('XF', 6, N+1)
-    UF = ca.MX.sym('UF', 2, N)
-    XL = ca.MX.sym('XL', 6, N+1)
-    UL = ca.MX.sym('UL', 2, N)
-
-    # 定义优化问题
-    nx = 6  # 状态维度
-    nu = 2  # 输入维度
+# Function to define decision variables
+def define_decision_variables(nx, nu, N):
     XF = ca.MX.sym('XF', nx, N+1)
     UF = ca.MX.sym('UF', nu, N)
     XL = ca.MX.sym('XL', nx, N+1)
     UL = ca.MX.sym('UL', nu, N)
+    return XF, UF, XL, UL
+
+# Function to define the cost function
+def define_cost_function(XF, UF, XL, UL, N, Q, R, xFref, xLref):
+    JF = 0
+    JL = 0
+    for k in range(N):
+        xFrefCa = ca.MX(xFref)
+        xLrefCa = ca.MX(xLref)
+        JF += ca.mtimes([(XF[:, k+1] - xFrefCa).T, Q, (XF[:, k+1] - xFrefCa)]) + ca.mtimes([UF[:, k].T, R, UF[:, k]])
+        JL += ca.mtimes([(XL[:, k+1] - xLrefCa).T, Q, (XL[:, k+1] - xLrefCa)]) + ca.mtimes([UL[:, k].T, R, UL[:, k]])
+    return JF, JL
+
+# # # Function for Leader Follower Game
+def gameLeaderFollower(xL0, xF0, probDecel0, probAccel0):
+
+    # 定义优化问题
+    nx = 6  # 状态维度
+    nu = 2  # 输入维度
     lenX = nx * (N+1)
     lenU = nu * N
+    XF, UF, XL, UL = define_decision_variables(nx, nu, N)
 
     JF = 0
     JL = 0
-    Jinfluence = 0
+    # Jinfluence = 0
     consF = []
     consL = []
     collisionConsF = []
@@ -89,14 +103,14 @@ def gameLeaderFollower(xL0, xF0):
     consL.append(XL[:, 0] - xL0)
 
     # 轨迹规划的目标
+    xFrefCa = ca.MX(xFref)
+    xLrefCa = ca.MX(xLref)
     for k in range(N):
         # cost
-        xFrefCa = ca.MX(xFref)
-        xLrefCa = ca.MX(xLref)
         JF += ca.mtimes([(XF[:, k+1] - xFrefCa).T, Q, (XF[:, k+1] - xFrefCa)]) + ca.mtimes([UF[:, k].T, R, UF[:, k]])
         JL += ca.mtimes([(XL[:, k+1] - xLrefCa).T, Q, (XL[:, k+1] - xLrefCa)]) + ca.mtimes([UL[:, k].T, R, UL[:, k]])
-        Jinfluence += (XF[1, k+1] - vxRef) ** 2
-        # constrain
+        # Jinfluence += (XF[1, k+1] - vxRef) ** 2
+        # dynamics constrain
         xF_next = dynamics(XF[:, k], UF[:, k])
         xL_next = dynamics(XL[:, k], UL[:, k])
         consF.append(XF[:, k+1] - xF_next)
@@ -128,23 +142,33 @@ def gameLeaderFollower(xL0, xF0):
 
     # construct the optimization problem
     x = ca.vertcat(ca.reshape(XF, -1, 1), ca.reshape(UF, -1, 1), ca.reshape(XL, -1, 1), ca.reshape(UL, -1, 1), lambda_, mu)
-    lbx = ca.vertcat((2 * (lenU + lenX) + lambda_.size1()) * [-ca.inf] + mu.size1() * [0])
-    nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequCon)}
+
+    # lower bound to x (add constraint mu >= 0)
+    lbx = ca.vertcat(
+        ca.repmat(-ca.inf, 2 * (lenU + lenX) + lambda_.size1(), 1),  # 生成全为 -ca.inf 的列向量
+        ca.repmat(0, mu.size1(), 1)                                  # 生成全为 0 的列向量(for mu)
+    )
+
+    # nlp = {'x': x, 'f': KF * JF + KL * JL + Kinfluence * Jinfluence, 'g': ca.vertcat(equCon, inequCon)}
+    nlp = {'x': x, 'f': KF * JF + KL * JL, 'g': ca.vertcat(equCon, inequCon)}
 
     # 设置求解器
-    # opts = {'ipopt': {'print_level': 0}}
-    # solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
-    solver = ca.nlpsol('solver', 'ipopt', nlp)
+    opts = {'ipopt': {'print_level': 0}}
+    solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
+    # solver = ca.nlpsol('solver', 'ipopt', nlp)
 
     # 求解优化问题
-    # sol = opti.solve()
-    # x0_var = np.concatenate((np.reshape(x0, (-1, 1)), np.zeros((nx * N, 1))), axis=0)
-    # u0_var = np.zeros((nu * N, 1))
-    # init_guess = np.concatenate((x0_var, u0_var), axis=0)
-    # sol = solver(x0=init_guess, lbx=-np.inf, ubx=np.inf, lbg=0, ubg=0)
     # without initial guess
-    sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequCon.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1() + inequCon.size1()) * [0]), lbx = lbx)
-    # sol = solver(lbg = 0, ubg = 0)
+    # sol = solver(lbg=ca.DM(equCon.size1() * [0] + inequCon.size1() * [-ca.inf]), ubg=ca.DM((equCon.size1() + inequCon.size1()) * [0]), lbx = lbx)
+    sol = solver(
+        lbg=ca.vertcat(
+            ca.repmat(0, equCon.size1(), 1),          # 全为 0 的列向量(for equality)
+            ca.repmat(-ca.inf, inequCon.size1(), 1)   # 全为 -ca.inf 的列向量(for inequality, <=0 )
+        ),
+        ubg=ca.repmat(0, equCon.size1() + inequCon.size1(), 1),  # 全为 0 的列向量
+        lbx=lbx
+    )
+
 
     # 提取解
     sol_x = sol['x'].full().flatten()
@@ -155,7 +179,9 @@ def gameLeaderFollower(xL0, xF0):
 
     return XF_sol, UF_sol, XL_sol, UL_sol
 
-XF_sol, UF_sol, XL_sol, UL_sol = gameLeaderFollower(xL0, xF0)
+# XF_sol, UF_sol, XL_sol, UL_sol, _, _, _, _ = gameLeaderFollower(xL0, xF0, 1, 0)
+# XDecelF_sol, UDecelF_sol, XDecelL_sol, UDecelL_sol, XAccelF_sol, UAccelF_sol, XAccelL_sol, UDecelL_sol = gameLeaderFollower(xL0, xF0)
+XF_sol, UF_sol, XL_sol, UL_sol = gameLeaderFollower(xL0, xF0, 1, 0)
 
 np.set_printoptions(precision=2)
 # print('XF_sol')

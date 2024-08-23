@@ -60,11 +60,11 @@ def dynamics(x, u):
 # Function for Leader Follower Game
 def gameLeaderFollower(xL0, xF0):
 
-    # 创建优化变量
-    XF = ca.MX.sym('XF', 6, N+1)
-    UF = ca.MX.sym('UF', 2, N)
-    XL = ca.MX.sym('XL', 6, N+1)
-    UL = ca.MX.sym('UL', 2, N)
+    # # 创建优化变量
+    # XF = ca.MX.sym('XF', 6, N+1)
+    # UF = ca.MX.sym('UF', 2, N)
+    # XL = ca.MX.sym('XL', 6, N+1)
+    # UL = ca.MX.sym('UL', 2, N)
 
     # 定义优化问题
     nx = 6  # 状态维度
