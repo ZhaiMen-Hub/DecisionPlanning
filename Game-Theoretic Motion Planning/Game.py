@@ -111,7 +111,6 @@ def gameLeaderFollower(xL0, xF0):
     equConL = ca.vertcat(*consL)
     inequConsF = ca.vertcat(*collisionConsF)
     inequConsL = ca.vertcat(*collisionConsL)
-    equCon = ca.vertcat(equConF, equConL)
     inequCon = ca.veccat(inequConsF, inequConsL)
 
     # define Lagrangian multipliers
