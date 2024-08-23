@@ -9,7 +9,7 @@ current_file_path = os.path.dirname(os.path.abspath(__file__))
 # 参数设置
 T = 10
 tau = 0.5
-N = int(T/tau)
+N = int(T/tau)  # planning horizon & planning times
 # tau = 1
 # N = 5
 Q = np.diag([0.0, 1.0, 2.0, 1.0, 2.0, 4.0])
@@ -25,12 +25,20 @@ vxRef = 10
 KF = 0.01
 KL = 1 - KF
 Kinfluence = 0
+tolerance = 5e-2
+accThreshold = 0.3  # Dead zone threshold of accelation for Accel / Dccel prediction
+probUpperBound = 0.95 # maximum probility
+probGrid = 0.05
 
 distL = 15
 # distF = 10
 distF = 20
 distDecelF = 20    # dist for follower to decel
 distAccelF = 10
+# decel = True        # real prob
+decel = False
+# probDecel0 = 0.99   # init prob 
+# probDecel0 = 0.01   # init prob 
 probDecel0 = 0.5
 probAccel0 = 1 - probDecel0
 
@@ -160,8 +168,12 @@ def gameLeaderFollower(xL0, xF0, probDecel, probAccel):
     complementary_slackness_decel = ca.diag(mu_dec) @ inequConsDecelF
     complementary_slackness_accel = ca.diag(mu_acc) @ inequConsAccelF
 
+    # Contingency MPC
+    CMpcCon = UDecelL[:, 0] - UAccelL[:, 0]
+
+    # equality constraints
     equCon = ca.vertcat(equConDecelF, equConAccelF, equConDecelL, equConAccelL,
-                        grad_L_x_decel, grad_L_x_accel, complementary_slackness_decel, complementary_slackness_accel)
+                        grad_L_x_decel, grad_L_x_accel, complementary_slackness_decel, complementary_slackness_accel, CMpcCon)
 
     # Construct the optimization problem
     x = ca.vertcat(ca.reshape(XDecelF, -1, 1), ca.reshape(UDecelF, -1, 1),
@@ -173,6 +185,7 @@ def gameLeaderFollower(xL0, xF0, probDecel, probAccel):
     lbx = ca.vertcat(
         ca.repmat(-ca.inf, 4 * (lenU + lenX) + lambda_dec.size1() + lambda_acc.size1(), 1),  # 生成全为 -ca.inf 的列向量
         ca.repmat(0, mu_dec.size1() + mu_acc.size1(), 1)                                  # 生成全为 0 的列向量(for mu)
+        # ca.repmat(-tolerance, mu_dec.size1() + mu_acc.size1(), 1)                                  # 生成全为 0 的列向量(for mu)
     )
 
     # NLP formulation
@@ -185,10 +198,12 @@ def gameLeaderFollower(xL0, xF0, probDecel, probAccel):
     # Solve the optimization problem
     sol = solver(
         lbg=ca.vertcat(
-            ca.repmat(0, equCon.size1(), 1),          # 全为 0 的列向量(for equality)
+            # ca.repmat(0, equCon.size1(), 1),          # 全为 0 的列向量(for equality)
+            ca.repmat(-tolerance, equCon.size1(), 1),          # 全为 0 的列向量(for equality)
             ca.repmat(-ca.inf, inequCon.size1(), 1)   # 全为 -ca.inf 的列向量(for inequality, <=0 )
         ),
         ubg=ca.repmat(0, equCon.size1() + inequCon.size1(), 1),  # 全为 0 的列向量
+        # ubg=ca.repmat(tolerance, equCon.size1() + inequCon.size1(), 1),  # 全为 0 的列向量
         lbx=lbx
     )
 
@@ -206,9 +221,84 @@ def gameLeaderFollower(xL0, xF0, probDecel, probAccel):
     return XDecelF_sol, UDecelF_sol, XDecelL_sol, UDecelL_sol, XAccelF_sol, UAccelF_sol, XAccelL_sol, UAccelL_sol
 
 
-XF_sol, UF_sol, XL_sol, UL_sol, _, _, _, _ = gameLeaderFollower(xL0, xF0, probDecel0, probAccel0)
-XDecelF_sol, UDecelF_sol, XDecelL_sol, UDecelL_sol, XAccelF_sol, UAccelF_sol, XAccelL_sol, UDecelL_sol = gameLeaderFollower(xL0, xF0, probDecel0, probAccel0)
+# XF_sol, UF_sol, XL_sol, UL_sol, _, _, _, _ = gameLeaderFollower(xL0, xF0, probDecel0, probAccel0)
+# XDecelF_sol, UDecelF_sol, XDecelL_sol, UDecelL_sol, XAccelF_sol, UAccelF_sol, XAccelL_sol, UAccelL_sol = gameLeaderFollower(xL0, xF0, probDecel0, probAccel0)
+# # print(UDecelL_sol.shape)
+# print(f"UDecelL_sol 0:{UDecelL_sol[:, 0]}")
+# print(f"UAccelL_sol 0:{UAccelL_sol[:, 0]}")
 # XF_sol, UF_sol, XL_sol, UL_sol = gameLeaderFollower(xL0, xF0, 1, 0)
+
+# Initialize lists to store the results for animation and tracking
+XDecelF_hist = []
+UDecelF_hist = []
+XDecelL_hist = []
+UDecelL_hist = []
+XAccelF_hist = []
+UAccelF_hist = []
+XAccelL_hist = []
+UAccelL_hist = []
+
+XF_actual = []
+UF_actual = []
+XL_actual = []
+UL_actual = []
+
+probDecel_hist = []
+probAccel_hist = []
+
+# Initial conditions for rolling horizon
+xF_curr = xF0
+xL_curr = xL0
+probDecel_curr = probDecel0
+probAccel_curr = probAccel0
+
+# Perform rolling horizon optimization
+for n in range(N):
+
+    # Solve the optimization problem using gameLeaderFollower
+    XDecelF_sol, UDecelF_sol, XDecelL_sol, UDecelL_sol, XAccelF_sol, UAccelF_sol, XAccelL_sol, UAccelL_sol = gameLeaderFollower(xL_curr, xF_curr, probDecel_curr, probAccel_curr)
+    
+    # Store the planned trajectories and controls
+    XDecelF_hist.append(XDecelF_sol)
+    UDecelF_hist.append(UDecelF_sol)
+    XDecelL_hist.append(XDecelL_sol)
+    UDecelL_hist.append(UDecelL_sol)
+    XAccelF_hist.append(XAccelF_sol)
+    UAccelF_hist.append(UAccelF_sol)
+    XAccelL_hist.append(XAccelL_sol)
+    UAccelL_hist.append(UAccelL_sol)
+    probDecel_hist.append(probDecel_curr)
+    probAccel_hist.append(probAccel_curr)
+
+    # Record the actual state and control executed
+    XL_actual.append(xL_curr)
+    XF_actual.append(xF_curr)
+    UL_actual.append(UDecelL_sol[:, 0])  # UDecelL_sol[:, 0] == UAccelL_sol[:, 0]
+    if decel:
+        UF_actual.append(UDecelF_sol[:, 0])
+    else:
+        UF_actual.append(UAccelF_sol[:, 0])
+
+    # Update Decel and Accel probability
+    if xF_curr[2] < -accThreshold:
+        probDecel_curr = min(probDecel_curr + probGrid, probUpperBound)  # predict that the follower will decel
+        probAccel_curr = 1 - probDecel_curr
+    elif xF_curr[2] > accThreshold:
+        probAccel_curr = min(probAccel_curr + probGrid, probUpperBound)  # predict that the follower will accel
+        probDecel_curr = 1 - probAccel_curr
+    else:
+        pass
+    
+    # Update initial conditions for the next iteration based on executed control
+    xL_curr = XDecelL_sol[:, 1] # Update leader state to the next step
+    # Update follower state to the next step
+    if decel:
+        xF_curr = XDecelF_sol[:, 1]
+    else:
+        xF_curr = XAccelF_sol[:, 1]
+
+
+# plotting
 
 np.set_printoptions(precision=2)
 # print('XF_sol')
@@ -216,27 +306,27 @@ np.set_printoptions(precision=2)
 # print('UF_sol')
 # print(UF_sol)
 
-# 可视化结果
-time = np.arange(N+1)
-plt.figure(figsize=(14, 8))
+# # 可视化结果
+# time = np.arange(N+1)
+# plt.figure(figsize=(14, 8))
 
-# px 轨迹
-plt.subplot(4, 2, 1)
-plt.plot(time, XF_sol[0, :], 'r-', label='px')
-plt.plot(time, xFref[0]*np.ones(N+1), 'b--', label='xref px')
-plt.title('Position in x')
-plt.xlabel('Time step')
-plt.ylabel('Position')
-plt.legend()
+# # px 轨迹
+# plt.subplot(4, 2, 1)
+# plt.plot(time, XF_sol[0, :], 'r-', label='px')
+# plt.plot(time, xFref[0]*np.ones(N+1), 'b--', label='xref px')
+# plt.title('Position in x')
+# plt.xlabel('Time step')
+# plt.ylabel('Position')
+# plt.legend()
 
-# py 轨迹
-plt.subplot(4, 2, 2)
-plt.plot(time, XF_sol[3, :], 'r-', label='py')
-plt.plot(time, xFref[3]*np.ones(N+1), 'b--', label='xref py')
-plt.title('Position in y')
-plt.xlabel('Time step')
-plt.ylabel('Position')
-plt.legend()
+# # py 轨迹
+# plt.subplot(4, 2, 2)
+# plt.plot(time, XF_sol[3, :], 'r-', label='py')
+# plt.plot(time, xFref[3]*np.ones(N+1), 'b--', label='xref py')
+# plt.title('Position in y')
+# plt.xlabel('Time step')
+# plt.ylabel('Position')
+# plt.legend()
 
 # # vx 轨迹
 # plt.subplot(4, 2, 3)
@@ -274,21 +364,26 @@ plt.legend()
 # plt.ylabel('Jerk')
 # plt.legend()
 
-# y-x 轨迹
-plt.figure(figsize=(7, 5))
-plt.plot(XF_sol[0, :], XF_sol[3, :], 'r-', label='Trajectory')
-plt.title('Trajectory (y vs. x)')
-plt.xlabel('px')
-plt.ylabel('py')
-plt.legend()
-plt.grid(True)
+# # y-x 轨迹
+# plt.figure(figsize=(7, 5))
+# plt.plot(XF_sol[0, :], XF_sol[3, :], 'r-', label='Trajectory')
+# plt.title('Trajectory (y vs. x)')
+# plt.xlabel('px')
+# plt.ylabel('py')
+# plt.legend()
+# plt.grid(True)
 
-plt.tight_layout()
-# plt.show()
+# plt.tight_layout()
+# # plt.show()
 
 # Create the animation
 fig, ax = plt.subplots(3, 1, figsize=(10, 8))
+# fig, ax = plt.subplots(2, 1, figsize=(10, 8))
 plt.tight_layout()
+
+# data reforming
+XF_actual = np.array(XF_actual).T # 6 * N
+XL_actual = np.array(XL_actual).T
 
 def update(frame):
 
@@ -298,23 +393,25 @@ def update(frame):
     ax[2].clear()
     
     # plot traj
-    ax[0].plot(XF_sol[0, : frame+1], XF_sol[3, : frame+1], 'bo-', label='Traj_F')
-    ax[0].plot(XL_sol[0, : frame+1], XL_sol[3, : frame+1], 'ro-', label='Traj_L')
+    ax[0].plot(XF_actual[0, : frame+1], XF_actual[3, : frame+1], 'bo-', label='Traj_F', linewidth=1)
+    ax[0].plot(XL_actual[0, : frame+1], XL_actual[3, : frame+1], 'mo-', label='Traj_L', linewidth=1)
 
-    # plot plan
-    ax[0].plot(XDecelL_sol[0, frame+1:], XDecelL_sol[3, frame+1:], 'm+', label='dec')
-    ax[0].plot(XAccelL_sol[0, frame+1:], XAccelL_sol[3, frame+1:], 'mx', label='acc')
+    # plot contingencyplan
+    # decel
+    ax[0].plot(XDecelL_hist[frame][0, :], XDecelL_hist[frame][3, :], 'r', label='dec', linewidth=3, alpha=probDecel_hist[frame])
+    # accel
+    ax[0].plot(XAccelL_hist[frame][0, :], XAccelL_hist[frame][3, :], 'r', label='acc', linewidth=3, alpha=probAccel_hist[frame])
 
     # plot collision distance
-    ax[0].axvline(x = XF_sol[0, frame] + distF, color='b', linestyle='--', label='collisionF')
-    ax[0].axvline(x = XL_sol[0, frame] - distL, color='r', linestyle='--', label='collisionL')
+    ax[0].axvline(x = XF_actual[0, frame] + distF, color='b', linestyle='--', label='collisionF')
+    ax[0].axvline(x = XL_actual[0, frame] - distL, color='r', linestyle='--', label='collisionL')
 
     # Add labels
     ax[0].set_xlabel('x')
     ax[0].set_ylabel('y')
-    ax[0].legend()
+    # ax[0].legend()
     # ax[0].set_title('State Evolution')
-    ax[0].set_title(f't = {frame * tau}')
+    ax[0].set_title(f't = {frame * tau}, Pd = {probDecel_hist[frame]:.2f}, Pa = {probAccel_hist[frame]:.2f}')
     
     # Set limit
     ax[0].set_xlim(0, 160)
@@ -323,8 +420,8 @@ def update(frame):
 
     # Plot 
     time = np.arange(0, frame * tau + tau, tau)
-    ax[1].plot(time, XF_sol[1, : frame+1], 'bo-', label='vxF')
-    ax[1].plot(time, XL_sol[1, : frame+1], 'ro-', label='vxL')
+    ax[1].plot(time, XF_actual[1, : frame+1], 'bo-', label='vxF')
+    ax[1].plot(time, XL_actual[1, : frame+1], 'ro-', label='vxL')
     
     # # Add labels
     ax[1].set_xlabel('t')
@@ -334,12 +431,12 @@ def update(frame):
 
     # # Set limit
     ax[1].set_xlim(0, T+2*tau)
-    ax[1].set_ylim(9.5, 15.5)
+    # ax[1].set_ylim(9.5, 15.5)
     ax[1].grid(True)
 
     # ax[2]
-    ax[2].plot(time, XF_sol[2, : frame+1], 'bo-', label='axF')
-    ax[2].plot(time, XL_sol[2, : frame+1], 'ro-', label='axL')
+    ax[2].plot(time, XF_actual[2, : frame+1], 'bo-', label='axF')
+    ax[2].plot(time, XL_actual  [2, : frame+1], 'ro-', label='axL')
     
     # # Add labels
     ax[2].set_xlabel('t')
@@ -349,13 +446,13 @@ def update(frame):
 
     # # Set limit
     ax[2].set_xlim(0, T+2*tau)
-    ax[2].set_ylim(-2, 2)
+    # ax[2].set_ylim(-2, 2)
     ax[2].grid(True)
 
     # save fig
     plt.savefig(f'{current_file_path}/log/CMPCGame_{frame}.jpg')
 
-ani = FuncAnimation(fig, update, frames=range(N+1), repeat=False)
+ani = FuncAnimation(fig, update, frames=range(N), repeat=False)
 ani.save(f'{current_file_path}/log/CMPCGame_animation.gif', writer='pillow')
 ani.save(f'{current_file_path}/log/CMPCGame_animation.mp4', writer='ffmpeg')
 
