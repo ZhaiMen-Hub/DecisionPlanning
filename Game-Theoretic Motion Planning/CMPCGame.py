@@ -19,18 +19,17 @@ xFref = np.array([0.0, 15.0, 0.0, 5.0, 0.0, 0.0])
 xL0 = np.array([32.0, 5.0, 0.0, 3.0, 0.0, 0.0])
 xLref = np.array([0.0, 5.0, 0.0, 5.0, 0.0, 0.0])
 addCollisionCons = True
-vxRef = 10
 KF = 0.01
 KL = 1 - KF
 Kinfluence = 0
 tolerance = 5e-2
-accThreshold = 0.3  # Dead zone threshold of accelation for Accel / Dccel prediction
+accThreshold = 0.4  # Dead zone threshold of accelation for Accel / Dccel prediction
 probUpperBound = 0.95 # maximum probility
 probGrid = 0.1
 
 distL = 15
 # distF = 10
-distF = 20
+# distF = 20
 distDecelF = 20    # dist for follower to decel
 distAccelF = 10
 # decel = True        # real prob
@@ -219,13 +218,6 @@ def gameLeaderFollower(xL0, xF0, probDecel, probAccel):
     return XDecelF_sol, UDecelF_sol, XDecelL_sol, UDecelL_sol, XAccelF_sol, UAccelF_sol, XAccelL_sol, UAccelL_sol
 
 
-# XF_sol, UF_sol, XL_sol, UL_sol, _, _, _, _ = gameLeaderFollower(xL0, xF0, probDecel0, probAccel0)
-# XDecelF_sol, UDecelF_sol, XDecelL_sol, UDecelL_sol, XAccelF_sol, UAccelF_sol, XAccelL_sol, UAccelL_sol = gameLeaderFollower(xL0, xF0, probDecel0, probAccel0)
-# # print(UDecelL_sol.shape)
-# print(f"UDecelL_sol 0:{UDecelL_sol[:, 0]}")
-# print(f"UAccelL_sol 0:{UAccelL_sol[:, 0]}")
-# XF_sol, UF_sol, XL_sol, UL_sol = gameLeaderFollower(xL0, xF0, 1, 0)
-
 # Initialize lists to store the results for animation and tracking
 XDecelF_hist = []
 UDecelF_hist = []
@@ -277,15 +269,15 @@ for n in range(N):
     else:
         UF_actual.append(UAccelF_sol[:, 0])
 
-    # Update Decel and Accel probability
-    if xF_curr[2] < -accThreshold:
-        probDecel_curr = min(probDecel_curr + probGrid, probUpperBound)  # predict that the follower will decel
-        probAccel_curr = 1 - probDecel_curr
-    elif xF_curr[2] > accThreshold:
-        probAccel_curr = min(probAccel_curr + probGrid, probUpperBound)  # predict that the follower will accel
-        probDecel_curr = 1 - probAccel_curr
-    else:
-        pass
+    # Update Decel and Accel probability (when neither prob achieve upper bound)
+    # n == 0 corespond to init acceleration
+    if n != 0 and probDecel_curr < probUpperBound and probAccel_curr < probUpperBound:
+        if xF_curr[2] < -accThreshold:
+            probDecel_curr = min(probDecel_curr + probGrid, probUpperBound)  # predict that the follower will decel
+            probAccel_curr = 1 - probDecel_curr
+        else:
+            probAccel_curr = min(probAccel_curr + probGrid, probUpperBound)  # predict that the follower will accel
+            probDecel_curr = 1 - probAccel_curr
     
     # Update initial conditions for the next iteration based on executed control
     xL_curr = XDecelL_sol[:, 1] # Update leader state to the next step
@@ -415,7 +407,7 @@ def update(frame):
     ax[0].set_ylim(2, 6)
     ax[0].grid(True)
 
-    # Plot 
+    # Plot ax[1] vel - time
     time = np.arange(0, frame * tau + tau, tau)
     ax[1].plot(time, XF_actual[1, : frame+1], 'bo-', label='vxF')
     ax[1].plot(time, XL_actual[1, : frame+1], 'mo-', label='vxL')
@@ -428,13 +420,14 @@ def update(frame):
 
     # # Set limit
     ax[1].set_xlim(0, T+2*tau)
-    # ax[1].set_ylim(9.5, 15.5)
+    ax[1].set_ylim(4, 18)
     ax[1].grid(True)
 
-    # # ax[2]
+    # # plot ax[2] Acc - time
     # ax[2].clear()
     # ax[2].plot(time, XF_actual[2, : frame+1], 'bo-', label='axF')
-    # ax[2].plot(time, XL_actual[2, : frame+1], 'ro-', label='axL')
+    # ax[2].plot(time, XL_actual[2, : frame+1], 'mo-', label='axL')
+    # # ax[2].plot(time, XL_actual[2, : frame+1] - XF_actual[2, : frame+1], 'ro-', label='axD')
     
     # # # Add labels
     # ax[2].set_xlabel('t')
