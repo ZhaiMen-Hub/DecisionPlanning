@@ -16,8 +16,6 @@ Q = np.diag([0.0, 1.0, 2.0, 1.0, 2.0, 4.0])
 R = np.diag([4.0, 4.0])
 xF0 = np.array([2.0, 15.0, 0.0, 5.0, 0.0, 0.0])
 xFref = np.array([0.0, 15.0, 0.0, 5.0, 0.0, 0.0])
-# xL0 = np.array([32.0, 10.0, 0.0, 3.0, 0.0, 0.0])
-# xLref = np.array([0.0, 10.0, 0.0, 5.0, 0.0, 0.0])
 xL0 = np.array([32.0, 5.0, 0.0, 3.0, 0.0, 0.0])
 xLref = np.array([0.0, 5.0, 0.0, 5.0, 0.0, 0.0])
 addCollisionCons = True
@@ -28,7 +26,7 @@ Kinfluence = 0
 tolerance = 5e-2
 accThreshold = 0.3  # Dead zone threshold of accelation for Accel / Dccel prediction
 probUpperBound = 0.95 # maximum probility
-probGrid = 0.05
+probGrid = 0.1
 
 distL = 15
 # distF = 10
@@ -377,8 +375,8 @@ np.set_printoptions(precision=2)
 # # plt.show()
 
 # Create the animation
-fig, ax = plt.subplots(3, 1, figsize=(10, 8))
-# fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+# fig, ax = plt.subplots(3, 1, figsize=(10, 8))
+fig, ax = plt.subplots(2, 1, figsize=(10, 8))
 plt.tight_layout()
 
 # data reforming
@@ -390,7 +388,6 @@ def update(frame):
     # clear plotting of last timestep
     ax[0].clear()
     ax[1].clear()
-    ax[2].clear()
     
     # plot traj
     ax[0].plot(XF_actual[0, : frame+1], XF_actual[3, : frame+1], 'bo-', label='Traj_F', linewidth=1)
@@ -402,26 +399,26 @@ def update(frame):
     # accel
     ax[0].plot(XAccelL_hist[frame][0, :], XAccelL_hist[frame][3, :], 'r', label='acc', linewidth=3, alpha=probAccel_hist[frame])
 
-    # plot collision distance
-    ax[0].axvline(x = XF_actual[0, frame] + distF, color='b', linestyle='--', label='collisionF')
-    ax[0].axvline(x = XL_actual[0, frame] - distL, color='r', linestyle='--', label='collisionL')
+    # # plot collision distance
+    # ax[0].axvline(x = XF_actual[0, frame] + distF, color='b', linestyle='--', label='collisionF')
+    # ax[0].axvline(x = XL_actual[0, frame] - distL, color='r', linestyle='--', label='collisionL')
 
     # Add labels
     ax[0].set_xlabel('x')
     ax[0].set_ylabel('y')
-    # ax[0].legend()
+    ax[0].legend(loc='lower right')
     # ax[0].set_title('State Evolution')
     ax[0].set_title(f't = {frame * tau}, Pd = {probDecel_hist[frame]:.2f}, Pa = {probAccel_hist[frame]:.2f}')
     
     # Set limit
     ax[0].set_xlim(0, 160)
-    ax[0].set_ylim(2, 8)
+    ax[0].set_ylim(2, 6)
     ax[0].grid(True)
 
     # Plot 
     time = np.arange(0, frame * tau + tau, tau)
     ax[1].plot(time, XF_actual[1, : frame+1], 'bo-', label='vxF')
-    ax[1].plot(time, XL_actual[1, : frame+1], 'ro-', label='vxL')
+    ax[1].plot(time, XL_actual[1, : frame+1], 'mo-', label='vxL')
     
     # # Add labels
     ax[1].set_xlabel('t')
@@ -434,20 +431,21 @@ def update(frame):
     # ax[1].set_ylim(9.5, 15.5)
     ax[1].grid(True)
 
-    # ax[2]
-    ax[2].plot(time, XF_actual[2, : frame+1], 'bo-', label='axF')
-    ax[2].plot(time, XL_actual  [2, : frame+1], 'ro-', label='axL')
+    # # ax[2]
+    # ax[2].clear()
+    # ax[2].plot(time, XF_actual[2, : frame+1], 'bo-', label='axF')
+    # ax[2].plot(time, XL_actual[2, : frame+1], 'ro-', label='axL')
     
-    # # Add labels
-    ax[2].set_xlabel('t')
-    ax[2].set_ylabel('ax')
-    ax[2].legend()
-    # ax[1].set_title('Control Inputs')
+    # # # Add labels
+    # ax[2].set_xlabel('t')
+    # ax[2].set_ylabel('ax')
+    # ax[2].legend()
+    # # ax[1].set_title('Control Inputs')
 
-    # # Set limit
-    ax[2].set_xlim(0, T+2*tau)
-    # ax[2].set_ylim(-2, 2)
-    ax[2].grid(True)
+    # # # Set limit
+    # ax[2].set_xlim(0, T+2*tau)
+    # # ax[2].set_ylim(-2, 2)
+    # ax[2].grid(True)
 
     # save fig
     plt.savefig(f'{current_file_path}/log/CMPCGame_{frame}.jpg')
