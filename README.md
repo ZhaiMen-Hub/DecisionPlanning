@@ -106,3 +106,38 @@ If you find this work useful or interesting, please kindly give me a star ⭐, t
   - [Interaction-Aware Game-Theoretic Motion Planning for Automated Vehicles using Bi-level Optimization - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/636258416)
   - [论文复现 基于博弈论的运动规划 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/711848923)
 - Burger, Christoph and Martin Lauer. “Cooperative Multiple Vehicle Trajectory Planning using MIQP.” *2018 21st International Conference on Intelligent Transportation Systems (ITSC)* (2018): 602-607.
+
+
+
+## Game-Theoretic  CMPC
+
+### How to run
+
+- Uncomment the corresponding code block of settings in `Game-Theoretic Motion Planning/CMPCGame.py` 
+
+  ```python
+  # scenario
+  
+  decel = True        # whether follower will decelarate
+  # decel = False
+  ```
+
+- Run the script `python3 Game-Theoretic Motion Planning/CMPCGame.py`
+
+- The anime and figures are saved in `Game-Theoretic Motion Planning/log/`
+
+### Results
+
+- Follower decelerate
+
+<img src="./README.assets/CMPCGame_animation.gif" alt="CMPCGame_animation" style="zoom: 67%;" />
+
+- Follower does not decelerate
+
+<img src="./README.assets/CMPCGame_animation-1724510471142-2.gif" alt="CMPCGame_animation" style="zoom:67%;" />
+
+### Reference
+
+- Wei, Junqing, John M. Dolan and Bakhtiar Litkouhi. “Autonomous vehicle social behavior for highway entrance ramp management.” *2013 IEEE Intelligent Vehicles Symposium (IV)* (2013): 201-207.
+  - [Autonomous Vehicle Social Behavior for Highway Entrance Ramp Management - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/606327598) 
+- [[附代码\]融合Leader-Follower Game和Contingency MPC的预测决策规划 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/716345167) 

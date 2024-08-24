@@ -7,7 +7,7 @@ from matplotlib.animation import FuncAnimation
 
 current_file_path = os.path.dirname(os.path.abspath(__file__))
 
-# 场景参数
+# scenario
 decel = True        # whether follower will decelarate
 # decel = False
 
@@ -376,7 +376,7 @@ np.set_printoptions(precision=2)
 # Create the animation
 # fig, ax = plt.subplots(3, 1, figsize=(10, 8))
 fig, ax = plt.subplots(2, 1, figsize=(10, 8))
-plt.tight_layout()
+# plt.tight_layout()
 
 # data reforming
 XF_actual = np.array(XF_actual).T # 6 * N
