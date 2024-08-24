@@ -2,9 +2,14 @@ import casadi as ca
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from matplotlib.animation import FuncAnimation
 
 current_file_path = os.path.dirname(os.path.abspath(__file__))
+
+# 场景参数
+decel = True        # whether follower will decelarate
+# decel = False
 
 # 参数设置
 T = 10
@@ -32,8 +37,6 @@ distL = 15
 # distF = 20
 distDecelF = 20    # dist for follower to decel
 distAccelF = 10
-# decel = True        # real prob
-decel = False
 # probDecel0 = 0.99   # init prob 
 # probDecel0 = 0.01   # init prob 
 probDecel0 = 0.5
@@ -44,6 +47,10 @@ probAccel0 = 1 - probDecel0
 # distF = 20    # collision ditance
 # distL = 20
 # Kinfluence = 1    # enable Jinfluence
+
+# plot parameters
+lengthCar = 8
+widthCar = 0.4
 
 # 状态转移矩阵
 A_np = np.array([[1.0, tau, 0.5*tau**2, 0.0, 0.0, 0.0],
@@ -384,6 +391,22 @@ def update(frame):
     # plot traj
     ax[0].plot(XF_actual[0, : frame+1], XF_actual[3, : frame+1], 'bo-', label='Traj_F', linewidth=1)
     ax[0].plot(XL_actual[0, : frame+1], XL_actual[3, : frame+1], 'mo-', label='Traj_L', linewidth=1)
+
+    # # plot Follower and Leader
+    # pxF = XF_actual[0, frame]
+    # pyF = XF_actual[3, frame]
+    # vxF = XF_actual[1, frame]
+    # vyF = XF_actual[4, frame]
+    # angleF = np.degrees(np.arctan2(vyF, vxF))
+    # pxL = XL_actual[0, frame]
+    # pyL = XL_actual[3, frame]
+    # vxL = XL_actual[1, frame]
+    # vyL = XL_actual[4, frame]
+    # angleL = np.degrees(np.arctan2(vyL, vxL))
+    # rectF = patches.Rectangle((pxF - lengthCar / 2, pyF - widthCar / 2), lengthCar, widthCar, angle=angleF, edgecolor='b', facecolor='none')
+    # ax[0].add_patch(rectF)
+    # rectL = patches.Rectangle((pxL - lengthCar / 2, pyL - widthCar / 2), lengthCar, widthCar, angle=angleL, edgecolor='r', facecolor='none')
+    # ax[0].add_patch(rectL)
 
     # plot contingencyplan
     # decel
