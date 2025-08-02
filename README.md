@@ -3,6 +3,7 @@ The repository implements some decision-making and contingency planning methods.
 
 If you find this work useful or interesting, please kindly give me a star ⭐, thanks!😀
 
+[![Star History Chart](https://api.star-history.com/svg?repos=ZhaiMen-Hub/DecisionPlanning&type=Date)](https://www.star-history.com/#ZhaiMen-Hub/DecisionPlanning&Date)
 
 
 ### Requirements
